@@ -2,7 +2,7 @@ name: Editais Brasil
 
 on:
   schedule:
-    - cron: "0 11 * * *"  # 08:00 Fortaleza (UTC-3) ≈ 11:00 UTC
+    - cron: '0 11 * * 4'   # toda quinta 11:00 UTC ≈ 08:00 Fortaleza (UTC-3)
   workflow_dispatch: {}
 
 jobs:
