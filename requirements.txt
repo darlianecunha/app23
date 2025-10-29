@@ -1,6 +1,4 @@
 feedparser
-beautifulsoup4
-html5lib
 requests
+beautifulsoup4
 python-dateutil
-pyyaml
