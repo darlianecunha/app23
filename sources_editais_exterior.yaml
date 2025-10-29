@@ -1,0 +1,12 @@
+# sources_editais_exterior.yaml (edite/expanda)
+rss_sources: {}
+html_sources:
+  NWO – Calls for proposals (EN): https://www.nwo.nl/en/calls
+  ZonMw – Calls: https://www.zonmw.nl/en/calls-for-proposals
+  RVO – Subsidies: https://www.rvo.nl/subsidies
+  DFG – Announcements & Proposals: https://www.dfg.de/en/research_funding/announcements_proposals
+  DAAD – Scholarships (EN): https://www.daad.de/en/study-and-research-in-germany/scholarships/
+  BMBF – Förderungen: https://www.bmbf.de/bmbf/de/service/foerderungen/foerderungen_node.html
+  ERC – Consolidator Grants: https://erc.europa.eu/apply-grant/consolidator-grant
+  ERC – Funding (All calls): https://erc.europa.eu/funding
+  EU Funding & Tenders – Horizon Europe (search): https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities-topic-search;callCode=HORIZON
