@@ -1,40 +1,71 @@
-name: Editais Brasil (Nacional + FAPEMA)
+name: Editais Brasil
 
 on:
   schedule:
-    - cron: "20 11 * * *"   # ajuste o horário que preferir (UTC)
-  workflow_dispatch:
+    - cron: "0 11 * * *"  # 08:00 Fortaleza (UTC-3) ≈ 11:00 UTC
+  workflow_dispatch: {}
 
 jobs:
   run:
     runs-on: ubuntu-latest
+
+    env:
+      # === Segredos obrigatórios ===
+      GMAIL_USER: ${{ secrets.GMAIL_USER }}
+      GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+      EMAIL_TO_BRASIL: ${{ secrets.EMAIL_TO_BRASIL }}
+
+      # === Parâmetros do monitor ===
+      DIAS_JANELA: "14"                # últimos 14 dias
+      BRASIL_NACIONAL: "1"            # CAPES/CNPq etc
+      BRASIL_ESTADUAL: "FAPEMA"       # limitar estadual apenas ao Maranhão (FAPEMA)
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r requirements.txt
 
-      # Manual = janela curtinha só pra testar
-      - name: Smoke-test (manual)
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          DAYS_BR: 3
-          MAX_PER_TERM_BR: 6
-          GMAIL_USER: ${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
-          EMAIL_TO_BRASIL: ${{ secrets.EMAIL_TO_BRASIL }}
-        run: python monitor_editais_brasil.py
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
 
-      # Agendado = 14 dias
-      - name: Run scheduled
-        if: github.event_name != 'workflow_dispatch'
-        env:
-          DAYS_BR: 14
-          MAX_PER_TERM_BR: 12
-          GMAIL_USER: ${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
-          EMAIL_TO_BRASIL: ${{ secrets.EMAIL_TO_BRASIL }}
-        run: python monitor_editais_brasil.py
+      - name: Install requirements
+        run: |
+          pip install -r requirements.txt
 
+      # ====== DEBUG OPCIONAL (mostra arquivos e libs) ======
+      - name: Debug—where am I?
+        run: |
+          pwd
+          ls -la
+          echo "Python:"
+          python -V
+          echo "Top pip:"
+          pip list | sed -n '1,120p'
 
+      - name: Show sources file (Brasil)
+        run: |
+          echo "=== sources_editais_brasil.yaml ==="
+          sed -n '1,200p' sources_editais_brasil.yaml
+
+      # ====== EXECUÇÃO ======
+      - name: Run monitor (Brasil)
+        run: |
+          python monitor_editais_brasil.py
+
+      # ====== Artefato opcional p/ auditoria ======
+      - name: Upload artifact (logs/result)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brasil-output
+          path: |
+            *.csv
+            *.log
+            monitor_*.txt
+            result_*.json
+            !venv/
+          if-no-files-found: ignore
