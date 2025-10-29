@@ -1,13 +1,56 @@
-name: Editais Exterior (stub)
+name: Editais Exterior (NL/DE/EU)
 
 on:
+  schedule:
+    - cron: "15 11 * * *"   # 08:15 Fortaleza (UTC-3) ≈ 11:15 UTC
   workflow_dispatch:
 
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: Stub visível
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install requirements
+        run: pip install -r requirements.txt
+
+      # === Smoke-test: envia e-mail SOMENTE no manual (workflow_dispatch) ===
+      - name: Smoke-test email (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO_EXTERIOR }}
         run: |
-          echo "Workflow Exterior carregado com sucesso."
-          echo "Depois troque este echo por: python monitor_editais_exterior.py"
+          python - <<'PY'
+          import os, smtplib
+          user = os.environ['GMAIL_USER']
+          pwd  = os.environ['GMAIL_APP_PASS']
+          to   = os.environ['EMAIL_TO']
+          msg = ("From: %s\r\nTo: %s\r\nSubject: Smoke test OK - Editais Exterior\r\n"
+                 "\r\nEste é um teste simples disparado manualmente.\r\n") % (user, to)
+          with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
+              s.starttls()
+              s.login(user, pwd)
+              s.sendmail(user, [to], msg.encode('utf-8'))
+          print("Smoke e-mail enviado para", to)
+          PY
+
+      - name: Rodar monitor (Exterior)
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO_EXTERIOR }}
+          SEARCH_DAYS: "3"
+          EMAIL_SUBJECT: "📨 Editais – NL/DE/EU (últimos 3 dias, incl. ERC Consolidator)"
+        run: |
+          python monitor_editais_exterior.py
