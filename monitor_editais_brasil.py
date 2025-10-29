@@ -1,93 +1,136 @@
+# -*- coding: utf-8 -*-
+"""
+Brasil (apenas FAPEMA) via Google News RSS
+- Locale BR/PT
+- Janela de 14 dias (padrão)
+- Envia para EMAIL_TO_BRASIL
+Requer secrets: GMAIL_USER, GMAIL_APP_PASS, EMAIL_TO_BRASIL
+"""
 import os
 import feedparser
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta, timezone
-from email.mime.text import MIMEText
+from urllib.parse import quote_plus
+import datetime
 import smtplib
-from dateutil import parser as dtparser
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-SEARCH_DAYS = int(os.getenv("SEARCH_DAYS", "3"))
-EMAIL_SUBJECT = os.getenv("EMAIL_SUBJECT", "📨 Editais – Brasil")
+# ===== Parâmetros =====
+LANG = os.getenv("LANG_BR", "pt-BR")
+COUNTRY = os.getenv("COUNTRY_BR", "BR")
+DAYS = int(os.getenv("DAYS_BR", "14"))
+MAX_PER_TERM = int(os.getenv("MAX_PER_TERM_BR", "10"))
+
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_APP_PASS = os.environ["GMAIL_APP_PASS"]
-EMAIL_TO = os.environ["EMAIL_TO"]
+EMAIL_TO = os.environ["EMAIL_TO_BRASIL"]
+EMAIL_SUBJECT = os.getenv("EMAIL_SUBJECT_BR", f"📨 Editais Brasil (FAPEMA) — últimos {DAYS} dias")
 
-# Palavras-chave que devem aparecer no título/descrição
-KEYWORDS = [
-    "edital", "chamada", "chamada pública", "seleção", "bolsa", "fomento",
-    "pesquisa", "inovação", "propostas", "resultado", "convocação"
+# ===== Termos — Brasil com local apenas FAPEMA (site:fapema.br) =====
+TERMS = [
+    # Filtros por site e termos típicos
+    "site:fapema.br edital",
+    "site:fapema.br chamada pública",
+    "site:fapema.br chamada publica",
+    "site:fapema.br resultado edital",
+    "site:fapema.br retificação edital",
+    "site:fapema.br bolsa",
+    "site:fapema.br pós-doutorado",
+    "site:fapema.br inovação",
+    # variações com www (alguns indexadores tratam diferente)
+    "site:www.fapema.br edital",
+    "site:www.fapema.br chamada pública",
+    "site:www.fapema.br resultado edital",
 ]
 
-# Fontes via Google News RSS (filtra por site:)
-RSS_SOURCES = {
-    "CAPES": "https://news.google.com/rss/search?q=site:capes.gov.br+edital+OR+\"chamada+p%C3%BAblica\"",
-    "CNPq": "https://news.google.com/rss/search?q=site:cnpq.br+edital+OR+\"chamada+p%C3%BAblica\"",
-    "FINEP": "https://news.google.com/rss/search?q=site:finep.gov.br+edital+OR+\"chamada+p%C3%BAblica\"",
-    "MCTI": "https://news.google.com/rss/search?q=site:mcti.gov.br+edital+OR+\"chamada+p%C3%BAblica\"",
-    "FAPEMA": "https://news.google.com/rss/search?q=site:fapema.br+edital+OR+\"chamada\"",
-    # Você pode incluir FAPESP, FAPESB, FAPERJ etc.
-    "FAPESP": "https://news.google.com/rss/search?q=site:fapesp.br+edital+OR+\"chamada\"",
-}
+def buscar(termos, lang, country, dias, max_por_termo):
+    resultados = {}
+    hoje = datetime.date.today()
+    limite = hoje - datetime.timedelta(days=dias)
 
-def within_days(published, days=3):
-    if not published:
-        return False
-    try:
-        dt = dtparser.parse(published)
-        if not dt.tzinfo:
-            dt = dt.replace(tzinfo=timezone.utc)
-    except Exception:
-        return False
-    return (datetime.now(timezone.utc) - dt) <= timedelta(days=days)
-
-def passes_keywords(title, summary):
-    text = f"{title or ''} {summary or ''}".lower()
-    return any(k in text for k in KEYWORDS)
-
-def fetch_feed(url):
-    return feedparser.parse(url)
-
-def collect_items():
-    items = []
-    for name, url in RSS_SOURCES.items():
-        feed = fetch_feed(url)
+    for termo in termos:
+        q = quote_plus(termo)
+        url = f"https://news.google.com/rss/search?q={q}&hl={lang}&gl={country}&ceid={country}:{lang}"
+        feed = feedparser.parse(url)
+        itens = []
         for e in feed.entries:
-            pub = getattr(e, "published", None) or getattr(e, "updated", None)
-            if within_days(pub, SEARCH_DAYS) and passes_keywords(e.get("title"), e.get("summary")):
-                items.append({
-                    "fonte": name,
-                    "titulo": e.get("title", "").strip(),
-                    "link": e.get("link", "").strip(),
-                    "published": pub
+            dp = e.get("published_parsed")
+            if not dp:
+                continue
+            d = datetime.date(*dp[:3])
+            if d >= limite:
+                itens.append({
+                    "data": d.strftime("%d/%m/%Y"),
+                    "titulo": e.title,
+                    "link": e.link,
                 })
-    return items
+        itens = sorted(
+            itens,
+            key=lambda x: datetime.datetime.strptime(x["data"], "%d/%m/%Y"),
+            reverse=True
+        )[:max_por_termo]
+        resultados[termo] = itens
+    return resultados
 
-def format_email(items):
-    if not items:
-        return "Nenhum edital encontrado no período configurado."
-    lines = []
-    items.sort(key=lambda x: x.get("published") or "", reverse=True)
-    for it in items:
-        lines.append(f"• [{it['fonte']}] {it['titulo']}\n  {it['link']}")
-    return "\n\n".join(lines)
+def html_email(noticias, dias):
+    style = """
+    <style>
+      body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #222; }
+      h2 { margin: 0 0 8px 0; }
+      .termo { font-weight: 600; margin-top: 14px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+      th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+      th { background: #f5f5f5; text-align: left; }
+      .muted { color: #666; }
+      .nores { color: #a00; }
+    </style>
+    """
+    head = f"<h2>Editais Brasil (FAPEMA) — últimos {dias} dias</h2><p class='muted'>Fonte: Google News RSS (site:fapema.br).</p>"
+    blocks = []
+    for termo, itens in noticias.items():
+        if not itens:
+            blocks.append(f"<div class='termo'>🔎 {termo}</div><div class='nores'>⚠️ Sem resultados</div>")
+        else:
+            linhas = "".join(
+                f"<tr><td>{i['data']}</td><td><a href='{i['link']}' target='_blank' rel='noopener noreferrer'>{i['titulo']}</a></td></tr>"
+                for i in itens
+            )
+            blocks.append(
+                f"<div class='termo'>🔎 {termo}</div>"
+                f"<table><thead><tr><th>Data</th><th>Título / Link</th></tr></thead>"
+                f"<tbody>{linhas}</tbody></table>"
+            )
+    return f"<!DOCTYPE html><html><head>{style}</head><body>{head}{''.join(blocks)}</body></html>"
 
-def send_email(body):
-    msg = MIMEText(body, _charset="utf-8")
-    msg["Subject"] = EMAIL_SUBJECT
+def txt_email(noticias, dias):
+    out = [f"Editais Brasil (FAPEMA) — últimos {dias} dias", ""]
+    for termo, itens in noticias.items():
+        out.append(f"🔎 {termo}")
+        if not itens:
+            out.append("  - Sem resultados")
+        else:
+            for i in itens[:5]:
+                out.append(f"  - [{i['data']}] {i['titulo']}  {i['link']}")
+        out.append("")
+    return "\n".join(out)
+
+def enviar(corpo_txt, corpo_html):
+    msg = MIMEMultipart("alternative")
     msg["From"] = GMAIL_USER
     msg["To"] = EMAIL_TO
-
+    msg["Subject"] = EMAIL_SUBJECT
+    msg.attach(MIMEText(corpo_txt, "plain", "utf-8"))
+    msg.attach(MIMEText(corpo_html, "html", "utf-8"))
     with smtplib.SMTP("smtp.gmail.com", 587, timeout=45) as s:
         s.starttls()
         s.login(GMAIL_USER, GMAIL_APP_PASS)
         s.send_message(msg)
 
 def main():
-    items = collect_items()
-    body = format_email(items)
-    send_email(body)
-    print(f"OK: {len(items)} itens enviados para {EMAIL_TO}")
+    data = buscar(TERMS, LANG, COUNTRY, DAYS, MAX_PER_TERM)
+    enviar(txt_email(data, DAYS), html_email(data, DAYS))
+    total = sum(len(v) for v in data.values())
+    print(f"BR-FAPEMA OK: {total} itens enviados para {EMAIL_TO}")
 
 if __name__ == "__main__":
     main()
+
