@@ -1,55 +1,58 @@
 # -*- coding: utf-8 -*-
+"""
+Internacional (NL/DE/EU) via Google News RSS — padrão Colab
+- Janela: 14 dias (padrão)
+- Foco: Holanda, Alemanha, União Europeia
+- Envia para EMAIL_TO_EXTERIOR
+Requer secrets: GMAIL_USER, GMAIL_APP_PASS, EMAIL_TO_EXTERIOR
+"""
+
 import os
-import feedparser
-from urllib.parse import quote_plus
 import datetime
+from urllib.parse import quote_plus
+import feedparser
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-# ===== Parâmetros via env (com defaults) =====
-LANG = os.getenv("LANG", "en")
-COUNTRY = os.getenv("COUNTRY", "US")
-DAYS = int(os.getenv("DAYS", "14"))
-MAX_PER_TERM = int(os.getenv("MAX_PER_TERM", "8"))
+# ===== Parâmetros (podem ser sobrepostos no workflow) =====
+LANG = os.getenv("LANG_INT", "en")
+COUNTRY = os.getenv("COUNTRY_INT", "US")     # US funciona bem para buscas globais
+DAYS = int(os.getenv("DAYS_INT", "14"))
+MAX_PER_TERM = int(os.getenv("MAX_PER_TERM_INT", "8"))
 
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_APP_PASS = os.environ["GMAIL_APP_PASS"]
-EMAIL_TO = os.environ["EMAIL_TO_EXTERIOR"]  # <- usamos o secret específico
+EMAIL_TO = os.environ["EMAIL_TO_EXTERIOR"]
 EMAIL_SUBJECT = os.getenv(
-    "EMAIL_SUBJECT",
-    f"📨 Postdoctoral & Research Funding — últimos {DAYS} dias (NL/DE/EU)"
+    "EMAIL_SUBJECT_INT",
+    f"📨 Editais Internacionais — NL/DE/EU — últimos {DAYS} dias"
 )
 
-# ===== Termos focados em NL / DE / EU =====
+# ===== Consultas focadas em domínios oficiais (menos ruído) =====
 TERMS = [
-    # Programas / funding
-    "NWO grant Netherlands", "NWO Vidi grant Netherlands",
-    "DAAD postdoctoral fellowship",
-    "DFG Individual Research Grant",
-    "Humboldt Fellowship for researchers",
-    "Georg Forster Fellowship",
-    "Volkswagen Foundation funding sustainability",
-    "ERC Consolidator Grant", "ERC Advanced Grant",
-    "MSCA postdoctoral fellowship", "MSCA Staff Exchanges",
-    "Horizon Europe postdoctoral opportunities",
-    "European research mobility program", "EU research grant call",
+    # União Europeia
+    'site:erc.europa.eu "Consolidator Grant"',
+    'site:erc.europa.eu "Advanced Grant"',
+    'site:marie-sklodowska-curie-actions.ec.europa.eu fellowship',
+    'site:ec.europa.eu MSCA',
+    'site:rea.ec.europa.eu MSCA',
+    'site:cordis.europa.eu "call for proposals"',
 
-    # Pós-doc genéricos
-    "postdoctoral fellowship Netherlands",
-    "postdoctoral fellowship Germany",
-    "postdoctoral research grant",
-    "funded postdoctoral position",
+    # Holanda (NL)
+    'site:nwo.nl Vidi',
+    'site:nwo.nl Vici',
+    'site:nwo.nl "open call"',
+    'site:euraxess.ec.europa.eu Netherlands postdoctoral',
 
-    # Temas
-    "sustainability research postdoc",
-    "green energy postdoctoral fellowship",
-    "climate change research funding",
-    "innovation and sustainability Europe",
-    "port decarbonisation research postdoc",
+    # Alemanha (DE)
+    'site:daad.de postdoctoral fellowship',
+    'site:dfg.de "individual research grant"',
+    'site:humboldt-foundation.de fellowship',
+    'site:avh.de fellowship',  # domínio curto da Humboldt
 ]
 
-def buscar(termos, lang="en", country="US", dias=14, max_por_termo=8):
+def buscar(termos, lang, country, dias, max_por_termo):
     resultados = {}
     hoje = datetime.date.today()
     limite = hoje - datetime.timedelta(days=dias)
@@ -91,7 +94,8 @@ def html_email(noticias, dias):
       .nores { color: #a00; }
     </style>
     """
-    head = f"<h2>Postdoctoral & Research Funding — últimos {dias} dias (NL/DE/EU)</h2><p class='muted'>Fonte: Google News RSS.</p>"
+    head = (f"<h2>Editais Internacionais — NL/DE/EU — últimos {dias} dias</h2>"
+            f"<p class='muted'>Fonte: Google News RSS (domínios oficiais).</p>")
     blocks = []
     for termo, itens in noticias.items():
         if not itens:
@@ -109,7 +113,7 @@ def html_email(noticias, dias):
     return f"<!DOCTYPE html><html><head>{style}</head><body>{head}{''.join(blocks)}</body></html>"
 
 def txt_email(noticias, dias):
-    out = [f"Postdoctoral & Research Funding — últimos {dias} dias (NL/DE/EU)", ""]
+    out = [f"Editais Internacionais — NL/DE/EU — últimos {dias} dias", ""]
     for termo, itens in noticias.items():
         out.append(f"🔎 {termo}")
         if not itens:
@@ -133,10 +137,10 @@ def enviar(corpo_txt, corpo_html):
         s.send_message(msg)
 
 def main():
-    data = buscar(TERMS, lang=LANG, country=COUNTRY, dias=DAYS, max_por_termo=MAX_PER_TERM)
+    data = buscar(TERMS, LANG, COUNTRY, DAYS, MAX_PER_TERM)
     enviar(txt_email(data, DAYS), html_email(data, DAYS))
     total = sum(len(v) for v in data.values())
-    print(f"EXTERIOR OK: {total} itens enviados para {EMAIL_TO}")
+    print(f"INT-NL/DE/EU OK: {total} itens enviados para {EMAIL_TO}")
 
 if __name__ == "__main__":
     main()
