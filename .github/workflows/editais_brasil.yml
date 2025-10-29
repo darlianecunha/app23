@@ -1,57 +1,40 @@
-name: Editais Brasil
+name: Editais Brasil (Nacional + FAPEMA)
 
 on:
   schedule:
-    - cron: "0 11 * * *"   # 08:00 Fortaleza (UTC-3) ≈ 11:00 UTC
+    - cron: "20 11 * * *"   # ajuste o horário que preferir (UTC)
   workflow_dispatch:
 
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - run: pip install -r requirements.txt
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
-
-      - name: Install requirements
-        run: pip install -r requirements.txt
-
-      # === Smoke-test: envia e-mail SOMENTE no manual (workflow_dispatch) ===
-      - name: Smoke-test email (manual run)
+      # Manual = janela curtinha só pra testar
+      - name: Smoke-test (manual)
         if: github.event_name == 'workflow_dispatch'
         env:
+          DAYS_BR: 3
+          MAX_PER_TERM_BR: 6
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO_BRASIL }}
-        run: |
-          python - <<'PY'
-          import os, smtplib
-          user = os.environ['GMAIL_USER']
-          pwd  = os.environ['GMAIL_APP_PASS']
-          to   = os.environ['EMAIL_TO']
-          msg = ("From: %s\r\nTo: %s\r\nSubject: Smoke test OK - Editais Brasil\r\n"
-                 "\r\nEste é um teste simples disparado manualmente.\r\n") % (user, to)
-          with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
-              s.starttls()
-              s.login(user, pwd)
-              s.sendmail(user, [to], msg.encode('utf-8'))
-          print("Smoke e-mail enviado para", to)
-          PY
+          EMAIL_TO_BRASIL: ${{ secrets.EMAIL_TO_BRASIL }}
+        run: python monitor_editais_brasil.py
 
-      - name: Rodar monitor (Brasil)
+      # Agendado = 14 dias
+      - name: Run scheduled
+        if: github.event_name != 'workflow_dispatch'
         env:
+          DAYS_BR: 14
+          MAX_PER_TERM_BR: 12
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO_BRASIL }}
-          SEARCH_DAYS: "3"
-          EMAIL_SUBJECT: "📨 Editais – Brasil (últimos 3 dias)"
-        run: |
-          python monitor_editais_brasil.py
+          EMAIL_TO_BRASIL: ${{ secrets.EMAIL_TO_BRASIL }}
+        run: python monitor_editais_brasil.py
+
 
