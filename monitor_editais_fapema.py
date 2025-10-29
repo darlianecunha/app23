@@ -7,36 +7,21 @@ from dateutil import parser as dtparser
 
 # === Config ===
 SEARCH_DAYS = int(os.getenv("SEARCH_DAYS", "14"))
-EMAIL_SUBJECT = os.getenv("EMAIL_SUBJECT", "📨 Editais – NL/DE/EU (últimos 14 dias, incl. ERC)")
+EMAIL_SUBJECT = os.getenv("EMAIL_SUBJECT", "📨 Editais – FAPEMA (últimos 14 dias)")
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_APP_PASS = os.environ["GMAIL_APP_PASS"]
 EMAIL_TO = os.environ["EMAIL_TO"]
 
-# === Fontes ampliadas (NWO, ZonMw, RVO, DFG, DAAD, BMBF, ERC, EU Funding, CORDIS, REA) ===
+# === Fontes (somente FAPEMA) ===
 RSS_SOURCES = {
-    # Holanda
-    "NWO (NL)": "https://news.google.com/rss/search?q=site:nwo.nl+(call+OR+grant+OR+subsidie+OR+fellowship)",
-    "ZonMw (NL)": "https://news.google.com/rss/search?q=site:zonmw.nl+(call+OR+grant+OR+subsidie+OR+fellowship)",
-    "RVO (NL subsidies)": "https://news.google.com/rss/search?q=site:rvo.nl+(subsidie+OR+regeling+OR+oproep)",
-    # Alemanha
-    "DFG (DE)": "https://news.google.com/rss/search?q=site:dfg.de+(call+OR+f%C3%B6rderung+OR+ausschreibung)",
-    "DAAD (DE)": "https://news.google.com/rss/search?q=site:daad.de+(call+OR+scholarship+OR+fellowship+OR+stipendium)",
-    "BMBF (DE)": "https://news.google.com/rss/search?q=site:bmbf.de+(f%C3%B6rderung+OR+ausschreibung+OR+call)",
-    # União Europeia
-    "EU Funding & Tenders": "https://news.google.com/rss/search?q=site:funding.ted.europa.eu+(call+OR+grant)",
-    "CORDIS (EU)": "https://news.google.com/rss/search?q=site:cordis.europa.eu+(call+OR+grant+OR+funding)",
-    "REA (EU)": "https://news.google.com/rss/search?q=site:rea.ec.europa.eu+(call+OR+grant)",
-    "ERC (Consolidator)": "https://news.google.com/rss/search?q=site:erc.europa.eu+(Consolidator+Grant+OR+call)",
+    "FAPEMA (site oficial RSS)": "https://www.fapema.br/portal/feed/",
+    "FAPEMA (Google News)": "https://news.google.com/rss/search?q=site:fapema.br+(edital+OR+chamada+OR+bolsa+OR+fomento)",
 }
 
 KEYWORDS = [
-    # EN
-    "call", "call for proposals", "grant", "funding", "fellowship", "programme", "deadline", "open call",
-    "erc", "consolidator",
-    # DE
-    "ausschreibung", "förderung", "stipendium",
-    # NL
-    "subsidie", "aanvraag", "oproep", "beurs",
+    "edital", "chamada", "chamadas", "chamada pública", "seleção", "convocação",
+    "submissão", "fomento", "bolsa", "bolsas", "pesquisa", "propostas",
+    "resultado", "retificação", "prorrog"
 ]
 
 def within_days(published, days=14):
@@ -74,10 +59,10 @@ def collect_items():
 
 def format_email(items):
     if not items:
-        return f"No calls found in the last {SEARCH_DAYS} days."
+        return f"Nenhum edital da FAPEMA encontrado nos últimos {SEARCH_DAYS} dias."
     items.sort(key=lambda x: x.get("published") or "", reverse=True)
-    header = f"Window: last {SEARCH_DAYS} days\nSources: {', '.join(RSS_SOURCES.keys())}\n"
-    body = "\n".join([f"• [{it['fonte']}] {it['titulo']}\n  {it['link']}" for it in items])
+    header = f"Janela: últimos {SEARCH_DAYS} dias\nFontes: FAPEMA\n"
+    body = "\n".join([f"• {it['titulo']}\n  {it['link']}" for it in items])
     return f"{header}\n{body}"
 
 def send_email(body):
@@ -93,7 +78,7 @@ def send_email(body):
 def main():
     items = collect_items()
     send_email(format_email(items))
-    print(f"EXTERIOR: {len(items)} itens enviados.")
+    print(f"FAPEMA: {len(items)} itens enviados.")
 
 if __name__ == "__main__":
     main()
