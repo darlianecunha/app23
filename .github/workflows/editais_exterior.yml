@@ -1,0 +1,13 @@
+name: Editais Exterior (stub)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stub visível
+        run: |
+          echo "Workflow Exterior carregado com sucesso."
+          echo "Depois troque este echo por: python monitor_editais_exterior.py"
