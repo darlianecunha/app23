@@ -1,4 +1,8 @@
-feedparser
 requests
+feedparser
 beautifulsoup4
+lxml
+html5lib
+PyYAML
 python-dateutil
+
