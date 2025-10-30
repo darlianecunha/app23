@@ -2,7 +2,7 @@ name: Editais Exterior (NL/DE/EU)
 
 on:
   schedule:
-    - cron: "15 11 * * *"   # 08:15 Fortaleza (UTC-3) ≈ 11:15 UTC
+   - cron: '0 11 * * 4'   # toda quinta 11:00 UTC ≈ 10:00 Fortaleza (UTC-3)
   workflow_dispatch:
 
 jobs:
